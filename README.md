@@ -81,7 +81,7 @@ pub async fn hello(
 
 ## Future Enhancements
 
-- Documentation, examples, documentation... docmentation
+- Documentation, examples, documentation... documentation
 - Catch unwinding panics and respond with HTTP 500
 - Make built-in error responses customizable
 - Replace the built in ways to route with implementations of a Router trait
