@@ -1,0 +1,16 @@
+[package]
+name = "marla"
+description = "Async Web Server Framework"
+version = "0.1.0-alpha.0"
+authors = ["Mark Achée <mark@achee.com>"]
+edition = "2018"
+readme = "README.md"
+repository = "https://github.com/MarkSort/marla"
+license = "MIT"
+
+[dependencies]
+either = "1.6"
+hyper = { version = "0.14", features = ["full"] }
+regex = "1.4"
+tokio = { version = "1.0",  features = ["full"] }
+uuid = { version = "0.8",  features = ["v4"] }

@@ -1,0 +1,161 @@
+use std::{collections::HashMap, convert::Infallible, net::SocketAddr};
+
+use hyper::{Method, http::request::Parts, server::conn::AddrStream};
+use hyper::service::{make_service_fn, service_fn};
+use hyper::{Body, Request as HyperRequest, Response, Server, StatusCode};
+use regex::Captures;
+use tokio::signal::ctrl_c;
+use uuid::Uuid;
+
+use self::config::{MarlaConfig, RegexPath, Route};
+
+pub mod config;
+
+pub async fn serve<B: 'static + Send + Clone> (config: MarlaConfig<B>, bundle: B) {
+    let listen_addr = config.listen_addr.clone();
+
+    // And a MakeService to handle each connection...
+    let make_svc = make_service_fn(move |conn: &AddrStream| {
+        let config = config.clone();
+        let bundle = bundle.clone();
+        let remote_addr = conn.remote_addr();
+
+        println!("{} | new connection", remote_addr);
+
+        async move {
+            Ok::<_, Infallible>(service_fn(move |hyper_request| {
+                let config = config.clone();
+                let bundle = bundle.clone();
+                async move { handle_request(hyper_request, remote_addr, config, bundle).await }
+            }))
+        }
+    });
+
+    let server: Server<_, _> = Server::bind(&listen_addr).serve(make_svc);
+
+    // And run forever...
+    if let Err(e) = server.with_graceful_shutdown(shutdown_signal()).await {
+        eprintln!("server error: {}", e);
+    }
+}
+
+async fn shutdown_signal() {
+    ctrl_c().await.expect("failed to install CTRL+C signal handler");
+}
+
+async fn handle_request<B: 'static + Clone> (
+    hyper_request: HyperRequest<Body>,
+    remote_addr: SocketAddr,
+    config: MarlaConfig<B>,
+    bundle: B,
+) -> Result<Response<Body>, Infallible> {
+    let (head, body) = hyper_request.into_parts();
+
+    let id = Uuid::new_v4();
+    let path = head.uri.path().to_string();
+    let method = &head.method.clone();
+
+    println!(
+        "{} | {} | new request - {} {}",
+        remote_addr, id, method, path
+    );
+
+    let mut bundle = bundle;
+
+    let mut path_captures = None;
+    let method_map = match config.static_path_routes.get(path.as_str()) {
+        None => {
+            match check_regex_routes(path.as_str(), config.regex_path_routes) {
+                None => {
+                    match if config.router.is_some() {
+                        let output = (config.router.unwrap())(path.as_str(), bundle).await;
+                        bundle = output.0;
+                        match output.1 {
+                            None => None,
+                            Some(method_map) => {
+                                Some(method_map)
+                            }
+                        }
+                    } else {
+                        None
+                    } {
+                        None => return Ok(Response::builder()
+                            .status(StatusCode::NOT_FOUND)
+                            .body(Body::from("not found\n"))
+                            .unwrap()),
+                        Some(method_map) => method_map
+                    }
+                },
+                Some(output) => {
+                    path_captures = Some(output.0);
+                    output.1
+                }
+            }
+        }
+        Some(method_map) => (*method_map).clone(),
+    };
+
+    let route = match method_map.get(method) {
+        None => {
+            return Ok(Response::builder()
+                .status(StatusCode::METHOD_NOT_ALLOWED)
+                .body(Body::from("method not allowed\n"))
+                .unwrap())
+        }
+        Some(route) => route,
+    };
+
+    let mut body = Some(body);
+
+    let mut path_params = vec![];
+    if let Some(path_captures) = path_captures {
+        for i in 1..path_captures.len() {
+            path_params.push(path_captures.get(i).unwrap().as_str().to_string());
+        }
+    };
+
+    let mut request = Request {
+        id,
+        head,
+        remote_addr,
+        path_params,
+    };
+
+
+    let middleware_vec = if route.middleware.is_some() {
+        route.middleware.clone().unwrap()
+    } else {
+        config.middleware
+    };
+
+    for middleware in middleware_vec {
+        let either = middleware(request, body, bundle).await;
+        if either.is_left() {
+            let output = either.left().unwrap();
+            request = output.0;
+            body = output.1; 
+            bundle = output.2;
+        } else {
+            return Ok(either.right().unwrap())
+        }
+    }
+
+    Ok((route.handler)(request, body, bundle).await)
+}
+
+fn check_regex_routes<B>(path: &str, regex_path_routes: Vec<RegexPath<B>>) -> Option<(Captures, HashMap<Method, Route<B>>)> {
+    for regex_path_route in regex_path_routes {
+        if let Some(path_params) = regex_path_route.regex.captures(path) {
+            return Some((path_params, regex_path_route.routes))
+        }
+    }
+
+    None
+}
+
+pub struct Request {
+    pub id: Uuid,
+    pub head: Parts,
+    pub remote_addr: SocketAddr,
+    pub path_params: Vec<String>,
+}
