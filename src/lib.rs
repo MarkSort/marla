@@ -1,10 +1,12 @@
-use std::{collections::HashMap, convert::Infallible, net::SocketAddr};
+use std::{collections::HashMap, convert::Infallible, net::SocketAddr, sync::Arc};
 
+use futures::{future::FutureExt, pin_mut, select};
 use hyper::{Method, http::request::Parts, server::conn::AddrStream};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request as HyperRequest, Response, Server, StatusCode};
 use regex::Captures;
 use tokio::signal::ctrl_c;
+use tokio::sync::{Mutex, oneshot::{Receiver, Sender}};
 use uuid::Uuid;
 
 use self::config::{MarlaConfig, RegexPath, Route};
@@ -14,11 +16,14 @@ pub mod config;
 pub async fn serve<B: 'static + Send + Clone> (config: MarlaConfig<B>, bundle: B) {
     let listen_addr = config.listen_addr.clone();
 
-    // And a MakeService to handle each connection...
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+    let shutdown_tx = Arc::new(Mutex::new(Some(shutdown_tx)));
+
     let make_svc = make_service_fn(move |conn: &AddrStream| {
         let config = config.clone();
         let bundle = bundle.clone();
         let remote_addr = conn.remote_addr();
+        let shutdown_tx = shutdown_tx.clone();
 
         println!("{} | new connection", remote_addr);
 
@@ -26,21 +31,31 @@ pub async fn serve<B: 'static + Send + Clone> (config: MarlaConfig<B>, bundle: B
             Ok::<_, Infallible>(service_fn(move |hyper_request| {
                 let config = config.clone();
                 let bundle = bundle.clone();
-                async move { handle_request(hyper_request, remote_addr, config, bundle).await }
+                let shutdown_tx = shutdown_tx.clone();
+                async move { handle_request(hyper_request, remote_addr, config, bundle, shutdown_tx).await }
             }))
         }
     });
 
     let server: Server<_, _> = Server::bind(&listen_addr).serve(make_svc);
 
-    // And run forever...
-    if let Err(e) = server.with_graceful_shutdown(shutdown_signal()).await {
+    if let Err(e) = server.with_graceful_shutdown(shutdown_signal(shutdown_rx)).await {
         eprintln!("server error: {}", e);
     }
 }
 
-async fn shutdown_signal() {
-    ctrl_c().await.expect("failed to install CTRL+C signal handler");
+async fn shutdown_signal(shutdown_rx: Receiver<()>) {
+    let ctrl_c_fut = ctrl_c().fuse();
+    let shutdown_rx_fut = shutdown_rx.fuse();
+
+    pin_mut!(ctrl_c_fut, shutdown_rx_fut);
+
+    let initiator = select! {
+        _ = ctrl_c_fut => "ctrl-c",
+        _ = shutdown_rx_fut => "shutdown channel",
+    };
+
+    println!("graceful shutdown initiated by {}", initiator);
 }
 
 async fn handle_request<B: 'static + Clone> (
@@ -48,6 +63,7 @@ async fn handle_request<B: 'static + Clone> (
     remote_addr: SocketAddr,
     config: MarlaConfig<B>,
     bundle: B,
+    shutdown_tx: Arc<Mutex<Option<Sender<()>>>>,
 ) -> Result<Response<Body>, Infallible> {
     let (head, body) = hyper_request.into_parts();
 
@@ -119,6 +135,7 @@ async fn handle_request<B: 'static + Clone> (
         head,
         remote_addr,
         path_params,
+        shutdown_tx,
     };
 
 
@@ -158,4 +175,5 @@ pub struct Request {
     pub head: Parts,
     pub remote_addr: SocketAddr,
     pub path_params: Vec<String>,
+    pub shutdown_tx: Arc<Mutex<Option<Sender<()>>>>,
 }
