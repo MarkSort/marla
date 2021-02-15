@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::Infallible, net::SocketAddr, sync::Arc};
+use std::{collections::HashMap, convert::Infallible, net::SocketAddr, panic::AssertUnwindSafe, sync::Arc};
 
 use futures::{future::FutureExt, pin_mut, select};
 use hyper::{Method, http::request::Parts, server::conn::AddrStream};
@@ -32,7 +32,20 @@ pub async fn serve<B: 'static + Send + Clone> (config: MarlaConfig<B>, bundle: B
                 let config = config.clone();
                 let bundle = bundle.clone();
                 let shutdown_tx = shutdown_tx.clone();
-                async move { handle_request(hyper_request, remote_addr, config, bundle, shutdown_tx).await }
+                async move {
+                    match AssertUnwindSafe(
+                        handle_request(hyper_request, remote_addr, config, bundle, shutdown_tx)
+                    ).catch_unwind().await {
+                        Ok(result) => result,
+                        Err(_) => Ok(
+                            Response::builder()
+                                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                                .body(Body::from("internal server error\n"))
+                                .unwrap()
+                        )
+                    }
+                    
+                }
             }))
         }
     });

@@ -82,7 +82,6 @@ pub async fn hello(
 ## Future Enhancements
 
 - Documentation, examples, documentation... documentation
-- Catch unwinding panics and respond with HTTP 500
 - More Tests
 - Configurable Logging
 - Make built-in error responses customizable
