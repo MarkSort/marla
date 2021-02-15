@@ -71,13 +71,16 @@ pub async fn hello(
   - Regex Paths - captured patterns are passed to the handler
   - Custom Router Function - for example, check a database for dynamic paths
 - Automatic HTTP 404 responses when paths are not found, and HTTP 405 when methods are not supported
+- Panics (unwinding) in handlers or middleware will return HTTP 500 responses
 - Post-Routing / Pre-Request Middleware
   - You provide a default list of Middleware to run for all requests
   - Override the default Middleware for individual routes
+  - Middleware can send custom responses, preventing call to handlers
 - App defined "Bundle" can be modified by Middleware and is passed to all requests.  Example properties:
   - Database Connection Pools
   - Validated Authentication / Authorization Details
   - Parsed Request Bodies
+- Handlers and middleware can initiate graceful server shutdown
 
 ## Future Enhancements
 
