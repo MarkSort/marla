@@ -70,7 +70,7 @@ pub async fn hello(
   - Static Paths
   - Regex Paths - captured patterns are passed to the handler
   - Custom Router Function - for example, check a database for dynamic paths
-- Automatic HTTP 404 responses when paths are not found, and HTTP 415 when methods are not supported
+- Automatic HTTP 404 responses when paths are not found, and HTTP 405 when methods are not supported
 - Post-Routing / Pre-Request Middleware
   - You provide a default list of Middleware to run for all requests
   - Override the default Middleware for individual routes
