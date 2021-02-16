@@ -72,7 +72,7 @@ pub async fn hello(
   - Custom Router Function - for example, check a database for dynamic paths
 - Automatic HTTP 404 responses when paths are not found, and HTTP 405 when methods are not supported
 - Panics (unwinding) in handlers or middleware will return HTTP 500 responses
-- Post-Routing / Pre-Request Middleware
+- Post-Routing / Pre-Handler Middleware
   - You provide a default list of Middleware to run for all requests
   - Override the default Middleware for individual routes
   - Middleware can send custom responses, preventing call to handlers
@@ -87,6 +87,10 @@ pub async fn hello(
 - Documentation, examples, documentation... documentation
 - More Tests
 - Configurable Logging
+- More Middleware types
+  - Post-Connection / Pre-Request-Received
+  - Post-Request-Received / Pre-Routing
+  - Post-Handler / Pre-Response-Sent
 - Make built-in error responses customizable
 - Replace the built in ways to route with implementations of a Router trait
 - Replace or re-export http/hyper types, etc.
