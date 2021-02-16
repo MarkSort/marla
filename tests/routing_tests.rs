@@ -1,38 +1,42 @@
-use std::{collections::HashMap, net::SocketAddr, time::Duration};
+use std::{net::SocketAddr, time::Duration};
 
 use async_std::task;
 use futures::{FutureExt, pin_mut, select};
 use hyper::{Body, Client, Method, Response, StatusCode};
 use macro_rules_attribute::macro_rules_attribute;
 
-use marla::{Request, async_handler, config::{MarlaConfig, Route}, serve};
+use marla::{Request, async_handler, config::{MarlaConfig, RegexPath, Route}, serve};
+use regex::Regex;
 
 #[async_std::test]
-async fn test_catch_undwind_500() {
+async fn test_regex_route() {
 
     let test = (|| async {
         // give server time to start
         task::sleep(Duration::from_millis(100)).await;
 
-        let uri = "http://localhost:3001/throw500".parse().unwrap();
+        let uri = "http://localhost:3001/hello".parse().unwrap();
         let mut response = Client::new().get(uri).await.unwrap();
 
-        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(response.status(), StatusCode::OK);
 
         let body = hyper::body::to_bytes(response.body_mut()).await.unwrap();
         let body = String::from_utf8(body.to_vec()).unwrap();
 
-        assert_eq!(body, "internal server error\n");
+        assert_eq!(body, "hello\n");
+
+        let uri = "http://localhost:3001/bye".parse().unwrap();
+        let response = Client::new().get(uri).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     })().fuse();
 
-    let static_path_router: HashMap<&'static str, HashMap<Method, Route<()>>> = vec![
-        ("/throw500", vec![
-            (Method::GET, Route { handler: throw500, middleware: Some(vec![])})
-        ].into_iter().collect())
-    ].into_iter().collect();
-
     let marla_config = MarlaConfig {
-        routers: vec![Box::new(static_path_router)],
+        routers: vec![Box::new(vec![
+            RegexPath{ regex: Regex::new("^/([a-zA-Z]{5})$").unwrap(), routes: vec![
+                (Method::GET, Route { handler: five_letters, middleware: None }),
+            ].into_iter().collect()},
+        ])],
         middleware: vec![],
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3001)),
     };
@@ -50,13 +54,10 @@ async fn test_catch_undwind_500() {
 }
 
 #[macro_rules_attribute(async_handler!)]
-async fn throw500(
-    _request: Request,
+async fn five_letters(
+    request: Request,
     _body: Option<Body>,
     _bundle: (),
 ) -> Response<Body> {
-    let x = vec![()];
-    let _ = x[1];
-
-    Response::new(Body::empty())
+    Response::new(Body::from(format!("{}\n", request.path_params[0])))
 }

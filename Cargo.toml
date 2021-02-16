@@ -9,6 +9,7 @@ repository = "https://github.com/MarkSort/marla"
 license = "MIT"
 
 [dependencies]
+async-trait = "0.1"
 either = "1.6"
 futures = "0.3"
 hyper = { version = "0.14", features = ["full"] }

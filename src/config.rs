@@ -4,7 +4,7 @@ use either::Either;
 use hyper::{Body, Method, Response};
 use regex::Regex;
 
-use crate::Request;
+use crate::{Request, routing::Router};
 
 #[derive(Clone)]
 pub struct Route<B> {
@@ -20,9 +20,7 @@ pub struct RegexPath<B> {
 
 #[derive(Clone)]
 pub struct MarlaConfig<B: 'static> {
-    pub router: Option< fn(&str, Request, Option<Body>, B) -> Pin<Box<dyn Future<Output= (Request, Option<Body>, B, Option<HashMap<Method, Route<B>>>)> + Send + '_ >> >,
-    pub static_path_routes: HashMap<&'static str, HashMap<Method, Route<B>>>,
-    pub regex_path_routes: Vec<RegexPath<B>>,
+    pub routers: Vec<Box<dyn Router<B>>>,
     pub middleware: Vec< fn(Request, Option<Body>, B) -> Pin<Box<dyn Future<Output= Either<(Request, Option<Body>, B), Response<Body>> > + Send >> >,
     pub listen_addr: SocketAddr,
 }

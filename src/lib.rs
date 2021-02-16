@@ -4,14 +4,14 @@ use futures::{future::FutureExt, pin_mut, select};
 use hyper::{Method, http::request::Parts, server::conn::AddrStream};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request as HyperRequest, Response, Server, StatusCode};
-use regex::Captures;
 use tokio::signal::ctrl_c;
 use tokio::sync::{Mutex, oneshot::{Receiver, Sender}};
 use uuid::Uuid;
 
-use self::config::{MarlaConfig, RegexPath, Route};
+use self::config::{MarlaConfig, Route};
 
 pub mod config;
+pub mod routing;
 
 pub async fn serve<B: 'static + Send + Clone> (config: MarlaConfig<B>, bundle: B) {
     let listen_addr = config.listen_addr.clone();
@@ -99,39 +99,32 @@ async fn handle_request<B: 'static + Clone> (
         shutdown_tx,
     };
 
-    let mut path_captures = None;
-    let method_map = match config.static_path_routes.get(path.as_str()) {
-        None => {
-            match check_regex_routes(path.as_str(), config.regex_path_routes) {
-                None => {
-                    match if config.router.is_some() {
-                        let output = (config.router.unwrap())(path.as_str(), request, body, bundle).await;
-                        request = output.0;
-                        body = output.1;
-                        bundle = output.2;
-                        match output.3 {
-                            None => None,
-                            Some(method_map) => {
-                                Some(method_map)
-                            }
-                        }
-                    } else {
-                        None
-                    } {
-                        None => return Ok(Response::builder()
-                            .status(StatusCode::NOT_FOUND)
-                            .body(Body::from("not found\n"))
-                            .unwrap()),
-                        Some(method_map) => method_map
+    let mut merged_method_map: Option<HashMap<Method, Route<B>>> = None;
+    for router in config.routers {
+        let router_future = router.route(&path, request, body, bundle);
+        let output = router_future.await;
+        request = output.0;
+        body = output.1;
+        bundle = output.2;
+
+        if let Some(method_map) = output.3 {
+            if let Some(ref mut merged) = merged_method_map {
+                for (method, route) in method_map {
+                    if !merged.contains_key(&method) {
+                        merged.insert(method, route);
                     }
-                },
-                Some(output) => {
-                    path_captures = Some(output.0);
-                    output.1
                 }
+            } else {
+                merged_method_map = Some(method_map);
             }
         }
-        Some(method_map) => (*method_map).clone(),
+    }
+    let method_map = match merged_method_map {
+        Some(method_map) => method_map,
+        None => return Ok(Response::builder()
+                            .status(StatusCode::NOT_FOUND)
+                            .body(Body::from("not found\n"))
+                            .unwrap())
     };
 
     let route = match method_map.get(method) {
@@ -142,23 +135,6 @@ async fn handle_request<B: 'static + Clone> (
                 .unwrap())
         }
         Some(route) => route,
-    };
-
-    // moves into RegexRouter eventually
-    if let Some(path_captures) = path_captures {
-        let mut path_params = vec![];
-
-        for i in 1..path_captures.len() {
-            path_params.push(path_captures.get(i).unwrap().as_str().to_string());
-        }
-
-        request = Request {
-            id,
-            head: request.head,
-            remote_addr,
-            path_params,
-            shutdown_tx: request.shutdown_tx,
-        };
     };
 
     let middleware_vec = if route.middleware.is_some() {
@@ -180,16 +156,6 @@ async fn handle_request<B: 'static + Clone> (
     }
 
     Ok((route.handler)(request, body, bundle).await)
-}
-
-fn check_regex_routes<B>(path: &str, regex_path_routes: Vec<RegexPath<B>>) -> Option<(Captures, HashMap<Method, Route<B>>)> {
-    for regex_path_route in regex_path_routes {
-        if let Some(path_params) = regex_path_route.regex.captures(path) {
-            return Some((path_params, regex_path_route.routes))
-        }
-    }
-
-    None
 }
 
 pub struct Request {

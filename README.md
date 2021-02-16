@@ -14,6 +14,7 @@ Not yet recommended for production use.  Not guaranteed to ever be ready.
 
 `Cargo.toml`:
 ```toml
+[dependencies]
 hyper = { version = "0.14", features = ["full"] }
 macro_rules_attribute = "0.0"
 marla = "0.1.0-alpha.0"
@@ -23,7 +24,6 @@ tokio = { version = "1.0",  features = ["full"] }
 
 `main.rs`:
 ```rust
-use std::collections::HashMap;
 use std::net::SocketAddr;
 
 use hyper::{Body, Method, Response};
@@ -35,18 +35,12 @@ use regex::Regex;
 #[tokio::main]
 async fn main() {
     let marla_config = MarlaConfig {
+        routers: vec![Box::new(vec![
+            RegexPath{ regex: Regex::new("^/hello/([a-zA-Z]{1,30})$").unwrap(), routes: vec![
+                (Method::GET, Route { handler: hello, middleware: None }),
+            ].into_iter().collect()},
+        ])],
 
-        regex_path_routes: vec![
-            RegexPath{
-                regex: Regex::new("^/hello/([a-zA-Z]{1,30})$").unwrap(),
-                routes: vec![
-                    (Method::GET, Route { handler: hello, middleware: None }),
-                ].into_iter().collect()
-            },
-        ],
-
-        static_path_routes: HashMap::new(),
-        router: None,
         middleware: vec![],
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
     };
@@ -92,6 +86,5 @@ pub async fn hello(
   - Post-Request-Received / Pre-Routing
   - Post-Handler / Pre-Response-Sent
 - Make built-in error responses customizable
-- Replace the built in ways to route with implementations of a Router trait
 - Replace or re-export http/hyper types, etc.
 - Macros for easier to read handler configuration

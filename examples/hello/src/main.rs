@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::net::SocketAddr;
 
 use hyper::{Body, Method, Response};
@@ -10,15 +9,12 @@ use regex::Regex;
 #[tokio::main]
 async fn main() {
     let marla_config = MarlaConfig {
-
-        regex_path_routes: vec![
+        routers: vec![Box::new(vec![
             RegexPath{ regex: Regex::new("^/hello/([a-zA-Z]{1,30})$").unwrap(), routes: vec![
                 (Method::GET, Route { handler: hello, middleware: None }),
             ].into_iter().collect()},
-        ],
+        ])],
 
-        static_path_routes: HashMap::new(),
-        router: None,
         middleware: vec![],
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
     };
