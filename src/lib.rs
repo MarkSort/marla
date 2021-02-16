@@ -79,6 +79,7 @@ async fn handle_request<B: 'static + Clone> (
     shutdown_tx: Arc<Mutex<Option<Sender<()>>>>,
 ) -> Result<Response<Body>, Infallible> {
     let (head, body) = hyper_request.into_parts();
+    let mut body = Some(body);
 
     let id = Uuid::new_v4();
     let path = head.uri.path().to_string();
@@ -90,6 +91,13 @@ async fn handle_request<B: 'static + Clone> (
     );
 
     let mut bundle = bundle;
+    let mut request = Request {
+        id,
+        head,
+        remote_addr,
+        path_params: vec![],
+        shutdown_tx,
+    };
 
     let mut path_captures = None;
     let method_map = match config.static_path_routes.get(path.as_str()) {
@@ -97,9 +105,11 @@ async fn handle_request<B: 'static + Clone> (
             match check_regex_routes(path.as_str(), config.regex_path_routes) {
                 None => {
                     match if config.router.is_some() {
-                        let output = (config.router.unwrap())(path.as_str(), bundle).await;
-                        bundle = output.0;
-                        match output.1 {
+                        let output = (config.router.unwrap())(path.as_str(), request, body, bundle).await;
+                        request = output.0;
+                        body = output.1;
+                        bundle = output.2;
+                        match output.3 {
                             None => None,
                             Some(method_map) => {
                                 Some(method_map)
@@ -134,23 +144,22 @@ async fn handle_request<B: 'static + Clone> (
         Some(route) => route,
     };
 
-    let mut body = Some(body);
-
-    let mut path_params = vec![];
+    // moves into RegexRouter eventually
     if let Some(path_captures) = path_captures {
+        let mut path_params = vec![];
+
         for i in 1..path_captures.len() {
             path_params.push(path_captures.get(i).unwrap().as_str().to_string());
         }
-    };
 
-    let mut request = Request {
-        id,
-        head,
-        remote_addr,
-        path_params,
-        shutdown_tx,
+        request = Request {
+            id,
+            head: request.head,
+            remote_addr,
+            path_params,
+            shutdown_tx: request.shutdown_tx,
+        };
     };
-
 
     let middleware_vec = if route.middleware.is_some() {
         route.middleware.clone().unwrap()
