@@ -6,10 +6,6 @@ Handlers can be called based on static path maps, regex based paths, and fully c
 
 Middleware can be configured to run for all requests by default and overridden for specific routes.
 
-## Production Readiness / Stability
-
-Not yet recommended for production use.  Not guaranteed to ever be ready.
-
 ## Example
 
 `Cargo.toml`:
