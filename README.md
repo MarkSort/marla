@@ -19,7 +19,7 @@ curl -sS http://localhost:3000/hello/world -D-
 [dependencies]
 hyper = { version = "0.14", features = ["full"] }
 macro_rules_attribute = "0.0"
-marla = "/path/to/marla" # with `main` branch checked out
+marla = "0.1.0-alpha.1"
 regex = "1.4"
 tokio = { version = "1.0",  features = ["full"] }
 ```
