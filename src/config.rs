@@ -1,8 +1,7 @@
-use std::{collections::HashMap, future::Future, net::SocketAddr, pin::Pin};
+use std::{future::Future, net::SocketAddr, pin::Pin};
 
 use either::Either;
-use hyper::{Body, Method, Response};
-use regex::Regex;
+use hyper::{Body, Response};
 
 use crate::{routing::Router, Request};
 
@@ -21,12 +20,6 @@ pub struct Route<B> {
             >,
         >,
     >,
-}
-
-#[derive(Clone)]
-pub struct RegexPath<B> {
-    pub regex: Regex,
-    pub routes: HashMap<Method, Route<B>>,
 }
 
 #[derive(Clone)]

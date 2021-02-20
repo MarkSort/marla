@@ -7,7 +7,8 @@ use macro_rules_attribute::macro_rules_attribute;
 
 use marla::{
     async_handler,
-    config::{MarlaConfig, RegexPath, Route},
+    config::{MarlaConfig, Route},
+    routing::RegexPath,
     serve, Request,
 };
 use regex::Regex;

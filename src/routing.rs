@@ -2,11 +2,9 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 use hyper::{Body, Method};
+use regex::Regex;
 
-use crate::{
-    config::{RegexPath, Route},
-    Request,
-};
+use crate::{config::Route, Request};
 
 #[async_trait]
 pub trait Router<B>: RouterClone<B> + Send {
@@ -53,6 +51,12 @@ impl<B: Clone + Send + 'static> Router<B> for HashMap<&'static str, HashMap<Meth
         };
         (request, body, bundle, methods)
     }
+}
+
+#[derive(Clone)]
+pub struct RegexPath<B> {
+    pub regex: Regex,
+    pub routes: HashMap<Method, Route<B>>,
 }
 
 #[async_trait]

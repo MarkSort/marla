@@ -2,7 +2,8 @@ use std::net::SocketAddr;
 
 use hyper::{Body, Method, Response};
 use macro_rules_attribute::macro_rules_attribute;
-use marla::config::{MarlaConfig, RegexPath, Route};
+use marla::config::{MarlaConfig, Route};
+use marla::routing::RegexPath;
 use marla::{async_handler, serve, Request};
 use regex::Regex;
 
