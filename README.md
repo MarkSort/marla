@@ -37,23 +37,12 @@ use regex::Regex;
 
 #[tokio::main]
 async fn main() {
-    let marla_config = MarlaConfig {
-        routers: vec![Box::new(vec![RegexPath {
+    let marla_config = MarlaConfig::builder(SocketAddr::from(([127, 0, 0, 1], 3000)))
+        .add_router(Box::new(vec![RegexPath {
             regex: Regex::new("^/hello/([a-zA-Z]{1,30})$").unwrap(),
-            routes: vec![(
-                Method::GET,
-                Route {
-                    handler: hello,
-                    middleware: None,
-                },
-            )]
-            .into_iter()
-            .collect(),
-        }])],
-
-        middleware: vec![],
-        listen_addr: SocketAddr::from(([127, 0, 0, 1], 3000)),
-    };
+            routes: vec![(Method::GET, Route::new(hello))].into_iter().collect(),
+        }]))
+        .build();
 
     serve(marla_config, ()).await;
 }

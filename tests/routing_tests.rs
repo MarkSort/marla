@@ -36,22 +36,16 @@ async fn test_regex_route() {
     })()
     .fuse();
 
-    let marla_config = MarlaConfig {
-        routers: vec![Box::new(vec![RegexPath {
-            regex: Regex::new("^/([a-zA-Z]{5})$").unwrap(),
-            routes: vec![(
-                Method::GET,
-                Route {
-                    handler: five_letters,
-                    middleware: None,
-                },
-            )]
+    let regex_path_router = vec![RegexPath {
+        regex: Regex::new("^/([a-zA-Z]{5})$").unwrap(),
+        routes: vec![(Method::GET, Route::new(five_letters))]
             .into_iter()
             .collect(),
-        }])],
-        middleware: vec![],
-        listen_addr: SocketAddr::from(([127, 0, 0, 1], 3001)),
-    };
+    }];
+
+    let marla_config = MarlaConfig::builder(SocketAddr::from(([127, 0, 0, 1], 3001)))
+        .add_router(Box::new(regex_path_router))
+        .build();
 
     let server = serve(marla_config, ()).fuse();
 

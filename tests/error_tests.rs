@@ -31,24 +31,16 @@ async fn test_catch_undwind_500() {
 
     let static_path_router: HashMap<&'static str, HashMap<Method, Route<()>>> = vec![(
         "/throw500",
-        vec![(
-            Method::GET,
-            Route {
-                handler: throw500,
-                middleware: Some(vec![]),
-            },
-        )]
-        .into_iter()
-        .collect(),
+        vec![(Method::GET, Route::new(throw500))]
+            .into_iter()
+            .collect(),
     )]
     .into_iter()
     .collect();
 
-    let marla_config = MarlaConfig {
-        routers: vec![Box::new(static_path_router)],
-        middleware: vec![],
-        listen_addr: SocketAddr::from(([127, 0, 0, 1], 3001)),
-    };
+    let marla_config = MarlaConfig::builder(SocketAddr::from(([127, 0, 0, 1], 3001)))
+        .add_router(Box::new(static_path_router))
+        .build();
 
     let server = serve(marla_config, ()).fuse();
 
