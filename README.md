@@ -8,6 +8,12 @@ Middleware can be configured to run for all requests by default and overridden f
 
 ## Example
 
+You can run this example in [examples/hello](examples/hello) and browse to http://localhost:3000/hello/world , or use `curl`:
+
+```bash
+curl -sS http://localhost/hello/world -D-
+```
+
 `Cargo.toml`:
 ```toml
 [dependencies]
