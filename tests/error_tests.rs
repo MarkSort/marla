@@ -1,15 +1,18 @@
 use std::{collections::HashMap, net::SocketAddr, time::Duration};
 
 use async_std::task;
-use futures::{FutureExt, pin_mut, select};
+use futures::{pin_mut, select, FutureExt};
 use hyper::{Body, Client, Method, Response, StatusCode};
 use macro_rules_attribute::macro_rules_attribute;
 
-use marla::{Request, async_handler, config::{MarlaConfig, Route}, serve};
+use marla::{
+    async_handler,
+    config::{MarlaConfig, Route},
+    serve, Request,
+};
 
 #[async_std::test]
 async fn test_catch_undwind_500() {
-
     let test = (|| async {
         // give server time to start
         task::sleep(Duration::from_millis(100)).await;
@@ -23,13 +26,23 @@ async fn test_catch_undwind_500() {
         let body = String::from_utf8(body.to_vec()).unwrap();
 
         assert_eq!(body, "internal server error\n");
-    })().fuse();
+    })()
+    .fuse();
 
-    let static_path_router: HashMap<&'static str, HashMap<Method, Route<()>>> = vec![
-        ("/throw500", vec![
-            (Method::GET, Route { handler: throw500, middleware: Some(vec![])})
-        ].into_iter().collect())
-    ].into_iter().collect();
+    let static_path_router: HashMap<&'static str, HashMap<Method, Route<()>>> = vec![(
+        "/throw500",
+        vec![(
+            Method::GET,
+            Route {
+                handler: throw500,
+                middleware: Some(vec![]),
+            },
+        )]
+        .into_iter()
+        .collect(),
+    )]
+    .into_iter()
+    .collect();
 
     let marla_config = MarlaConfig {
         routers: vec![Box::new(static_path_router)],
@@ -50,11 +63,7 @@ async fn test_catch_undwind_500() {
 }
 
 #[macro_rules_attribute(async_handler!)]
-async fn throw500(
-    _request: Request,
-    _body: Option<Body>,
-    _bundle: (),
-) -> Response<Body> {
+async fn throw500(_request: Request, _body: Option<Body>, _bundle: ()) -> Response<Body> {
     let x = vec![()];
     let _ = x[1];
 

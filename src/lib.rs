@@ -1,11 +1,16 @@
-use std::{collections::HashMap, convert::Infallible, net::SocketAddr, panic::AssertUnwindSafe, sync::Arc};
+use std::{
+    collections::HashMap, convert::Infallible, net::SocketAddr, panic::AssertUnwindSafe, sync::Arc,
+};
 
 use futures::{future::FutureExt, pin_mut, select};
-use hyper::{Method, http::request::Parts, server::conn::AddrStream};
 use hyper::service::{make_service_fn, service_fn};
+use hyper::{http::request::Parts, server::conn::AddrStream, Method};
 use hyper::{Body, Request as HyperRequest, Response, Server, StatusCode};
 use tokio::signal::ctrl_c;
-use tokio::sync::{Mutex, oneshot::{Receiver, Sender}};
+use tokio::sync::{
+    oneshot::{Receiver, Sender},
+    Mutex,
+};
 use uuid::Uuid;
 
 use self::config::{MarlaConfig, Route};
@@ -13,7 +18,7 @@ use self::config::{MarlaConfig, Route};
 pub mod config;
 pub mod routing;
 
-pub async fn serve<B: 'static + Send + Clone> (config: MarlaConfig<B>, bundle: B) {
+pub async fn serve<B: 'static + Send + Clone>(config: MarlaConfig<B>, bundle: B) {
     let listen_addr = config.listen_addr.clone();
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
@@ -33,18 +38,22 @@ pub async fn serve<B: 'static + Send + Clone> (config: MarlaConfig<B>, bundle: B
                 let bundle = bundle.clone();
                 let shutdown_tx = shutdown_tx.clone();
                 async move {
-                    match AssertUnwindSafe(
-                        handle_request(hyper_request, remote_addr, config, bundle, shutdown_tx)
-                    ).catch_unwind().await {
+                    match AssertUnwindSafe(handle_request(
+                        hyper_request,
+                        remote_addr,
+                        config,
+                        bundle,
+                        shutdown_tx,
+                    ))
+                    .catch_unwind()
+                    .await
+                    {
                         Ok(result) => result,
-                        Err(_) => Ok(
-                            Response::builder()
-                                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                                .body(Body::from("internal server error\n"))
-                                .unwrap()
-                        )
+                        Err(_) => Ok(Response::builder()
+                            .status(StatusCode::INTERNAL_SERVER_ERROR)
+                            .body(Body::from("internal server error\n"))
+                            .unwrap()),
                     }
-                    
                 }
             }))
         }
@@ -52,7 +61,10 @@ pub async fn serve<B: 'static + Send + Clone> (config: MarlaConfig<B>, bundle: B
 
     let server: Server<_, _> = Server::bind(&listen_addr).serve(make_svc);
 
-    if let Err(e) = server.with_graceful_shutdown(shutdown_signal(shutdown_rx)).await {
+    if let Err(e) = server
+        .with_graceful_shutdown(shutdown_signal(shutdown_rx))
+        .await
+    {
         eprintln!("server error: {}", e);
     }
 }
@@ -71,7 +83,7 @@ async fn shutdown_signal(shutdown_rx: Receiver<()>) {
     println!("graceful shutdown initiated by {}", initiator);
 }
 
-async fn handle_request<B: 'static + Clone> (
+async fn handle_request<B: 'static + Clone>(
     hyper_request: HyperRequest<Body>,
     remote_addr: SocketAddr,
     config: MarlaConfig<B>,
@@ -121,10 +133,12 @@ async fn handle_request<B: 'static + Clone> (
     }
     let method_map = match merged_method_map {
         Some(method_map) => method_map,
-        None => return Ok(Response::builder()
-                            .status(StatusCode::NOT_FOUND)
-                            .body(Body::from("not found\n"))
-                            .unwrap())
+        None => {
+            return Ok(Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(Body::from("not found\n"))
+                .unwrap())
+        }
     };
 
     let route = match method_map.get(method) {
@@ -148,10 +162,10 @@ async fn handle_request<B: 'static + Clone> (
         if either.is_left() {
             let output = either.left().unwrap();
             request = output.0;
-            body = output.1; 
+            body = output.1;
             bundle = output.2;
         } else {
-            return Ok(either.right().unwrap())
+            return Ok(either.right().unwrap());
         }
     }
 

@@ -1,16 +1,19 @@
 use std::{net::SocketAddr, time::Duration};
 
 use async_std::task;
-use futures::{FutureExt, pin_mut, select};
+use futures::{pin_mut, select, FutureExt};
 use hyper::{Body, Client, Method, Response, StatusCode};
 use macro_rules_attribute::macro_rules_attribute;
 
-use marla::{Request, async_handler, config::{MarlaConfig, RegexPath, Route}, serve};
+use marla::{
+    async_handler,
+    config::{MarlaConfig, RegexPath, Route},
+    serve, Request,
+};
 use regex::Regex;
 
 #[async_std::test]
 async fn test_regex_route() {
-
     let test = (|| async {
         // give server time to start
         task::sleep(Duration::from_millis(100)).await;
@@ -29,14 +32,22 @@ async fn test_regex_route() {
         let response = Client::new().get(uri).await.unwrap();
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    })().fuse();
+    })()
+    .fuse();
 
     let marla_config = MarlaConfig {
-        routers: vec![Box::new(vec![
-            RegexPath{ regex: Regex::new("^/([a-zA-Z]{5})$").unwrap(), routes: vec![
-                (Method::GET, Route { handler: five_letters, middleware: None }),
-            ].into_iter().collect()},
-        ])],
+        routers: vec![Box::new(vec![RegexPath {
+            regex: Regex::new("^/([a-zA-Z]{5})$").unwrap(),
+            routes: vec![(
+                Method::GET,
+                Route {
+                    handler: five_letters,
+                    middleware: None,
+                },
+            )]
+            .into_iter()
+            .collect(),
+        }])],
         middleware: vec![],
         listen_addr: SocketAddr::from(([127, 0, 0, 1], 3001)),
     };
@@ -54,10 +65,6 @@ async fn test_regex_route() {
 }
 
 #[macro_rules_attribute(async_handler!)]
-async fn five_letters(
-    request: Request,
-    _body: Option<Body>,
-    _bundle: (),
-) -> Response<Body> {
+async fn five_letters(request: Request, _body: Option<Body>, _bundle: ()) -> Response<Body> {
     Response::new(Body::from(format!("{}\n", request.path_params[0])))
 }

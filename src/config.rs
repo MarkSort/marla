@@ -4,12 +4,23 @@ use either::Either;
 use hyper::{Body, Method, Response};
 use regex::Regex;
 
-use crate::{Request, routing::Router};
+use crate::{routing::Router, Request};
 
 #[derive(Clone)]
 pub struct Route<B> {
-    pub handler: fn(Request, Option<Body>, B) -> Pin<Box<dyn Future<Output = Response<Body>> + Send >>,
-    pub middleware:  Option<Vec< fn(Request, Option<Body>, B) -> Pin<Box<dyn Future<Output= Either<(Request, Option<Body>, B), Response<Body>> > + Send >> >>,
+    pub handler:
+        fn(Request, Option<Body>, B) -> Pin<Box<dyn Future<Output = Response<Body>> + Send>>,
+    pub middleware: Option<
+        Vec<
+            fn(
+                Request,
+                Option<Body>,
+                B,
+            ) -> Pin<
+                Box<dyn Future<Output = Either<(Request, Option<Body>, B), Response<Body>>> + Send>,
+            >,
+        >,
+    >,
 }
 
 #[derive(Clone)]
@@ -21,7 +32,15 @@ pub struct RegexPath<B> {
 #[derive(Clone)]
 pub struct MarlaConfig<B: 'static> {
     pub routers: Vec<Box<dyn Router<B>>>,
-    pub middleware: Vec< fn(Request, Option<Body>, B) -> Pin<Box<dyn Future<Output= Either<(Request, Option<Body>, B), Response<Body>> > + Send >> >,
+    pub middleware: Vec<
+        fn(
+            Request,
+            Option<Body>,
+            B,
+        ) -> Pin<
+            Box<dyn Future<Output = Either<(Request, Option<Body>, B), Response<Body>>> + Send>,
+        >,
+    >,
     pub listen_addr: SocketAddr,
 }
 
