@@ -1,7 +1,7 @@
 [package]
 name = "marla"
 description = "Async Web Server Framework"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 authors = ["Mark Achée <mark@achee.com>"]
 edition = "2018"
 readme = "README.md"
