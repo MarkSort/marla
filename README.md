@@ -59,8 +59,10 @@ pub async fn hello(request: Request, _body: Option<Body>, _bundle: ()) -> Respon
   - Static Paths
   - Regex Paths - captured patterns are passed to the handler
   - Custom Router Function - for example, check a database for dynamic paths
-- Automatic HTTP 404 responses when paths are not found, and HTTP 405 when methods are not supported
-- Panics (unwinding) in handlers or middleware will return HTTP 500 responses
+- Common error cases return appropriate responses by default, and are customizable
+  - HTTP 404 when paths are not found
+  - HTTP 405 when methods are not supported
+  - HTTP 500 for panics (unwinding)
 - Post-Routing / Pre-Handler Middleware
   - You provide a default list of Middleware to run for all requests
   - Override the default Middleware for individual routes
@@ -80,6 +82,5 @@ pub async fn hello(request: Request, _body: Option<Body>, _bundle: ()) -> Respon
   - Post-Connection / Pre-Request-Received
   - Post-Request-Received / Pre-Routing
   - Post-Handler / Pre-Response-Sent
-- Make built-in error responses customizable
 - Replace or re-export http/hyper types, etc.
 - Macros for easier to read handler configuration

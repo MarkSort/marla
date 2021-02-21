@@ -5,7 +5,7 @@ use std::{
 use futures::{future::FutureExt, pin_mut, select};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{http::request::Parts, server::conn::AddrStream, Method};
-use hyper::{Body, Request as HyperRequest, Response, Server, StatusCode};
+use hyper::{Body, Request as HyperRequest, Response, Server};
 use tokio::signal::ctrl_c;
 use tokio::sync::{
     oneshot::{Receiver, Sender},
@@ -16,6 +16,7 @@ use uuid::Uuid;
 use self::config::{MarlaConfig, Route};
 
 pub mod config;
+pub mod provided;
 pub mod routing;
 
 pub async fn serve<B: 'static + Send + Clone>(config: MarlaConfig<B>, bundle: B) {
@@ -34,6 +35,8 @@ pub async fn serve<B: 'static + Send + Clone>(config: MarlaConfig<B>, bundle: B)
 
         async move {
             Ok::<_, Infallible>(service_fn(move |hyper_request| {
+                let internal_server_error_handler = config.internal_server_error_handler.clone();
+
                 let config = config.clone();
                 let bundle = bundle.clone();
                 let shutdown_tx = shutdown_tx.clone();
@@ -49,10 +52,7 @@ pub async fn serve<B: 'static + Send + Clone>(config: MarlaConfig<B>, bundle: B)
                     .await
                     {
                         Ok(result) => result,
-                        Err(_) => Ok(Response::builder()
-                            .status(StatusCode::INTERNAL_SERVER_ERROR)
-                            .body(Body::from("internal server error\n"))
-                            .unwrap()),
+                        Err(_) => Ok((internal_server_error_handler)().await),
                     }
                 }
             }))
@@ -133,21 +133,11 @@ async fn handle_request<B: 'static + Clone>(
     }
     let method_map = match merged_method_map {
         Some(method_map) => method_map,
-        None => {
-            return Ok(Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(Body::from("not found\n"))
-                .unwrap())
-        }
+        None => return Ok((config.not_found_handler)(request, body, bundle).await),
     };
 
     let route = match method_map.get(method) {
-        None => {
-            return Ok(Response::builder()
-                .status(StatusCode::METHOD_NOT_ALLOWED)
-                .body(Body::from("method not allowed\n"))
-                .unwrap())
-        }
+        None => return Ok((config.method_not_allowed_handler)(request, body, bundle).await),
         Some(route) => route,
     };
 
