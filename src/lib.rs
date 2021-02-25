@@ -25,7 +25,7 @@ pub async fn serve<B: 'static + Send + Clone>(config: MarlaConfig<B>, bundle: B)
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
     let shutdown_tx = Arc::new(Mutex::new(Some(shutdown_tx)));
 
-    let make_svc = make_service_fn(move |conn: &AddrStream| {
+    let make_svc = make_service_fn(|conn: &AddrStream| {
         let config = config.clone();
         let bundle = bundle.clone();
         let remote_addr = conn.remote_addr();
